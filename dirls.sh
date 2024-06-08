@@ -79,7 +79,9 @@ function format_listing_html {
 	# TODO: handle paths containing newlines?
 	dir_max_depth=2
 
+	# Directories:
 	printf "<h2>%s</h2>\n" ${webroot}
+	printf '<a href="%s">..</a>\n' "$(basename "${webroot}/.." | uri_encode_path | html_escape)"
 	echo "<ul>"
 	find "${webroot}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
 		| while read -r path
@@ -90,6 +92,7 @@ function format_listing_html {
 	done
 	echo "</ul>"
 
+	# Files:
 	all_files="$(find "${webroot}" -mindepth 1 -maxdepth 1 -not -type d -printf '%P\n')"
 	files_categorized=()
 
@@ -105,8 +108,8 @@ function format_listing_html {
 			files_categorized+=("${path}")
 
 			printf "<li><a href=\"%s\">%s</a></li>\n" \
-				$(uri_encode_path <<< "${webroot}/${path}" | html_escape) \
-				$(html_escape <<< "${path}")
+				"$(uri_encode_path <<< "${webroot}/${path}" | html_escape)" \
+				"$(html_escape <<< "${path}")"
 
 		# Avoid creating a subshell with process substitution
 		done < <(grep -P ${regex} <<< "${all_files}")
@@ -137,7 +140,7 @@ function format_listing_html {
 # format_listing_html $(basename .) | html_template "$(html_escape <<< "dirls - ${webroot}")"
 
 function http_handle_request {
-	#local method path version html content_type content_length
+	#local method path version body content_type content_length http_status
 	read -r method path version < <(head -n 1 | tr -d '\r' | tr -s ' ')
 
 	# builtin echo $method $path $version
@@ -146,17 +149,44 @@ function http_handle_request {
 	then
 		printf '%s 400 Bad Request\r\nConnection: close\r\n\r\n' "${version}"
 	else
-		# TODO: handle files, 404s etc
-		# webroot="${path}"
-		URI_PREFIX=''
-		read -r -d '' html \
-			< <(format_listing_html "${path}" | html_template "$(html_escape <<< "dirls - ${webroot}")")
+		if [[ "${path}" != '/' && "${path: -1}" == '/' ]]
+		then
+			# Normalize paths ending with a slash
+			path="${path%/}"
+		fi
 
-		content_type="text/html"
-		content_length="${#html}"
+		if [[ -f "${path}" ]]
+		then
+			http_status='200 OK'
+			read -r -d '' body < "${path}"
+			content_type=$(file -b --mime-type "${path}")
+
+			grep -E '^text\/.+' <<< "${content_type}" >/dev/null
+			if [[ $? -eq 0 && ! $content_type =~ ';' ]]
+			then
+				content_type+=';charset=UTF-8'
+			fi
+		elif [[ -d "${path}" ]]
+		then
+			http_status='200 OK'
+			URI_PREFIX=''
+			read -r -d '' body \
+				< <(format_listing_html "${path}" | html_template "$(html_escape <<< "dirls - ${webroot}")")
+			content_type="text/html"
+		else
+			local html
+			http_status='404 Not Found'
+			content_type='text/html'
+			read -r -d '' html <<- EOF
+			<h1>Not Found</h1>
+			EOF
+			body=$(html_template 'dirls - Not Found' <<< "${html}")
+		fi
+
+		content_length="${#body}"
 
 		sed 's/$/\r/' <<- EOF
-		${version} 200 OK
+		${version} ${http_status}
 		Connection: abort
 		Content-Type: ${content_type}
 		Content-Length: ${content_length}
@@ -166,7 +196,7 @@ function http_handle_request {
 		EOF
 		
 		# Content should not have LF replaced with CR LF
-		printf "%s" "${html}"
+		printf "%s" "${body}"
 	fi
 }
 
