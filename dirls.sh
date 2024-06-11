@@ -55,7 +55,7 @@ function format_listing_html {
 
 	# Directories:
 	printf "<h2>%s</h2>\n" ${webroot}
-	printf '<a href="%s">..</a>\n' "$(realpath "${webroot}/.." | uri_encode_path | html_escape)"
+	printf '<a href="%s">..</a>\n' "$(realpath -- "${webroot}/.." | uri_encode_path | html_escape)"
 	echo "<ul>"
 	find "${webroot}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
 		| while read -r path
@@ -329,6 +329,7 @@ do
 			opt_port="$2"
 			;;
 		--)
+			shift
 			break
 			;;
 		-*|--*)
@@ -341,6 +342,13 @@ do
 	esac
 
 	shift $(( shift_by + 1 ))
+done
+
+# `--` leaves remaining positional arguments, collect them:
+while (( $# > 0 ))
+do
+	positional_args+=("$1")
+	shift
 done
 
 if [[ "${opt_help}" == true ]]
@@ -437,7 +445,7 @@ else
 	{
 		for i in "${positional_args[@]}"
 		do
-			format_listing_html "$(realpath "${i}")"
+			format_listing_html "$(realpath -- "${i}")"
 		done
 	} | html_template "${title}"
 fi
