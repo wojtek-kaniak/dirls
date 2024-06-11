@@ -473,6 +473,12 @@ then
 
 	URI_PREFIX=''
 
+	if (( ${#positional_args} > 0 ))
+	then
+		echo "unexpected arguments '${positional_args[@]}'" >&2
+		exit 2
+	fi
+
 	echo "listening on port '${DIRLS_PORT}'" >&2
 	http_serve
 else
