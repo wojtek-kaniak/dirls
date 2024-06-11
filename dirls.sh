@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 # Dependecies:
-# 	find, grep with PCRE support, sed, nc, wc, realpath
+# 	find, grep with PCRE support, sed, nc, wc, realpath, stat
 
 function echo {
 	printf "%s\n" "$*"
@@ -57,6 +57,22 @@ function path_sort {
 	esac
 }
 
+# $1 - webroot
+# $2 - path
+function format_file {
+	if [[ "${DIRLS_DETAILED}" == '' ]]
+	then
+		printf "<li><a href=\"%s\">%s</a></li>\n" \
+			"$(uri_encode_path <<< "${1}/${2}" | html_escape)" \
+			"$(html_escape <<< "${2}")"
+	else
+		printf "<details><summary><a href=\"%s\">%s</a></summary><pre>%s</pre></details>\n" \
+			"$(uri_encode_path <<< "${1}/${2}" | html_escape)" \
+			"$(html_escape <<< "${2}")" \
+			"$(stat -- "${1}/${2}" | tail -n +2 | html_escape | sed 's/$/<br \/>/')"
+	fi
+}
+
 # $1 - web root
 function format_listing_html {
 	local webroot dir_max_depth
@@ -73,9 +89,7 @@ function format_listing_html {
 	find "${webroot}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
 		| path_sort | while read -r path
 	do
-		printf "<li><a href=\"%s\">%s</a></li>\n" \
-			$(uri_encode_path <<< "${webroot}/${path}" | html_escape) \
-			$(html_escape <<< "${path}")
+		format_file "${webroot}" "${path}"
 	done
 	echo "</ul>"
 
@@ -127,10 +141,7 @@ function format_listing_html {
 
 			files_categorized+=("${path}")
 
-			printf "<li><a href=\"%s\">%s</a></li>\n" \
-				"$(uri_encode_path <<< "${webroot}/${path}" | html_escape)" \
-				"$(html_escape <<< "${path}")"
-
+			format_file "${webroot}" "${path}"
 		# Avoid creating a subshell with process substitution
 		done < <(grep -P -e "${regex}" <<< "${all_files}")
 
@@ -159,9 +170,7 @@ function format_listing_html {
 			echo "<ul>"
 		fi
 
-		printf "<li><a href=\"%s\">%s</a></li>\n" \
-			$(uri_encode_path <<< "${webroot}/${path}" | html_escape) \
-			$(html_escape <<< "${path}")
+		format_file "${webroot}" "${path}"
 	done <<< "${all_files}"
 
 	if [[ "${other_contains_any}" == true ]]
@@ -281,7 +290,6 @@ function opt_arg_expected {
 	exit 2
 }
 
-# TODO: detailed
 read -r -d '' help_text << EOF
 Usage: $0 [OPTION]... [DIRECTORY]...
        $0 --serve [OPTION]...
