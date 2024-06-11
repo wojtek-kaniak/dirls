@@ -43,13 +43,26 @@ function html_template {
 	echo "${template}"
 }
 
+function path_sort {
+	case "${DIRLS_SORT}" in
+		asc)
+			sort
+			;;
+		desc)
+			sort -r
+			;;
+		*)
+			cat -
+			;;
+	esac
+}
+
 # $1 - web root
 function format_listing_html {
 	local webroot dir_max_depth
 
 	webroot="${1}"
 
-	# TODO: omit empty categories
 	# TODO: handle paths containing newlines?
 	dir_max_depth=2
 
@@ -58,7 +71,7 @@ function format_listing_html {
 	printf '<a href="%s">..</a>\n' "$(realpath -- "${webroot}/.." | uri_encode_path | html_escape)"
 	echo "<ul>"
 	find "${webroot}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
-		| while read -r path
+		| path_sort | while read -r path
 	do
 		printf "<li><a href=\"%s\">%s</a></li>\n" \
 			$(uri_encode_path <<< "${webroot}/${path}" | html_escape) \
@@ -67,7 +80,7 @@ function format_listing_html {
 	echo "</ul>"
 
 	# Files:
-	all_files="$(find "${webroot}" -mindepth 1 -maxdepth 1 -not -type d -printf '%P\n')"
+	all_files="$(find "${webroot}" -mindepth 1 -maxdepth 1 -not -type d -printf '%P\n' | path_sort)"
 	files_categorized=()
 
 	for category in "${categories[@]}"
@@ -174,10 +187,10 @@ function http_handle_request {
 		sed 's/$/\r/' <<- EOF
 		${version} 405 Method Not Allowed
 		Connection: close
+		Content-Length: 0
 		Allow: GET
-		EOF
 
-		# TODO
+		EOF
 	fi
 
 	if [[ $version != 'HTTP/1.1' && $version != 'HTTP/1.0' ]]
@@ -206,7 +219,6 @@ function http_handle_request {
 			content_length=$(wc -c "${path}")
 
 			# File content can't be saved in a variable to preserve null bytes
-			# TODO: HTTP respond function?
 			sed 's/$/\r/' <<- EOF
 			${version} 200 OK
 			Connection: close
@@ -269,20 +281,25 @@ function opt_arg_expected {
 	exit 2
 }
 
+# TODO: detailed
 read -r -d '' help_text << EOF
 Usage: $0 [OPTION]... [DIRECTORY]...
-	   $0 --serve [OPTION]...
+       $0 --serve [OPTION]...
 Print an HTML directory listing.
 
-  -c, --config <arg>    load config files from <arg>
-  -d, --detailed <arg>  include additional file metadata in the listing
-  -o, --output <arg>    output to <arg> rather than to stdout
-						(ignored with --serve)
-  -h, --help            display this help and exit
+  -c, --config <arg>        load config files from <arg>
+  -d, --detailed <arg>      include additional file metadata in the listing
+  -o, --output <arg>        output to <arg> rather than to stdout
+                             (ignored with --serve)
+      --sort none|asc|desc  sort the listing
+                             none - (default) find.1 order
+                             asc  - ascending order
+                             desc - descending (reverse) order
+  -h, --help                display this help and exit
 
  HTTP specific options:
-      --serve           start an HTTP directory listing server
-  -p, --port <arg>      listen on <arg>
+      --serve               start an HTTP directory listing server
+  -p, --port <arg>          listen on <arg>
 EOF
 
 positional_args=()
@@ -315,6 +332,26 @@ do
 			fi
 
 			opt_output="$2"
+			;;
+		--sort)
+			shift_by=1
+			if (( $# < 2 ))
+			then
+				opt_arg_expected "$1"
+			fi
+
+			case "$2" in
+				none)
+					DIRLS_SORT=''
+					;;
+				asc|desc)
+					DIRLS_SORT="${2}"
+					;;
+				*)
+					echo "invalid sort order '${2}'" >&2
+					exit 2
+					;;
+			esac
 			;;
 		--serve)
 			opt_serve=true
