@@ -416,15 +416,16 @@ done < "${config_path}/categories"
 
 # webroot=$(realpath ".")
 
+read -r -d '' STYLE < "${config_path}/style.css"
+
 if [[ "${opt_serve}" == true ]]
 then
 	if [[ opt_port != '' ]]
 	then
 		DIRLS_PORT="${opt_port}"
 	fi
-
 	DIRLS_PORT="${DIRLS_PORT:-8080}"
-	read -r -d '' STYLE < "${config_path}/style.css"
+
 	URI_PREFIX=''
 
 	echo "listening on port '${DIRLS_PORT}'" >&2
