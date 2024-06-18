@@ -82,11 +82,13 @@ function format_listing_html {
 	# TODO: handle paths containing newlines?
 	dir_max_depth=2
 
+	webroot_abs="$(realpath -- "${webroot}")"
+
 	# Directories:
 	printf "<h2>%s</h2>\n" ${webroot}
 	printf '<a href="%s">..</a>\n' "$(realpath -- "${webroot}/.." | uri_encode_path | html_escape)"
 	echo "<ul>"
-	find "${webroot}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
+	find "${webroot_abs}" -mindepth 1 -maxdepth ${dir_max_depth} -type d -printf '%P\n' \
 		| path_sort | while read -r path
 	do
 		format_file "${webroot}" "${path}"
@@ -94,7 +96,7 @@ function format_listing_html {
 	echo "</ul>"
 
 	# Files:
-	all_files="$(find "${webroot}" -mindepth 1 -maxdepth 1 -not -type d -printf '%P\n' | path_sort)"
+	all_files="$(find "${webroot_abs}" -mindepth 1 -maxdepth 1 -not -type d -printf '%P\n' | path_sort)"
 	files_categorized=()
 
 	for category in "${categories[@]}"
@@ -330,7 +332,7 @@ do
 			opt_config="$2"
 			;;
 		-d|--detailed)
-			opt_detailed=true
+			DIRLS_DETAILED=true
 			;;
 		-o|--output)
 			shift_by=1
