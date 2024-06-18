@@ -283,7 +283,7 @@ function http_serve {
 	do
 		# Linux specific:
 		# redirect stdout back to stdin, see https://unix.stackexchange.com/a/296434
-		: | { nc -l "${DIRLS_PORT:-8080}" | http_handle_request; } > /dev/fd/0
+		: | { nc -l localhost "${DIRLS_PORT:-8080}" | http_handle_request; } > /dev/fd/0
 	done
 }
 
